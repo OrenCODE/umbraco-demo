@@ -1,0 +1,13 @@
+{
+    "propertyEditors": [
+      {
+        "alias": "React.JsonTableEditor",
+        "name": "React JSON Table Editor",
+        "editor": {
+          "view": "~/App_Plugins/ReactJsonEditor/reactTableEditor.html",
+          "valueType": "JSON"
+        }
+      }
+    ]
+  }
+  
