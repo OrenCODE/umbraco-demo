@@ -1,7 +1,7 @@
 // QuestionnairePage.tsx
 import { AnimatePresence } from 'framer-motion';
 import { Navigate, useParams } from 'react-router-dom';
-import { QuestionPage } from '../components/QuestionPage';
+import { QuestionPage } from '../components/Question';
 import { useQuestionnaire } from '../context/QuestionnaireContext';
 
 export const QuestionnairePage: React.FC = () => {

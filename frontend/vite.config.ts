@@ -11,12 +11,17 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/umbraco/api': {
-      // Adjust target as needed; here we're assuming your ASP.NET Core backend is
-      // running on HTTP on port 10768. If it's HTTPS, update the target accordingly.
-      target: 'http://localhost:10768',
-      changeOrigin: true,
-      secure: false,
+        // Adjust target as needed; here we're assuming your ASP.NET Core backend is
+        // running on HTTP on port 10768. If it's HTTPS, update the target accordingly.
+        target: 'http://localhost:10768',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/umbraco/delivery': {
+        target: 'http://localhost:10768',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
-},
 })

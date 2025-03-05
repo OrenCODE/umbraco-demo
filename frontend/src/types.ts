@@ -11,6 +11,7 @@ export interface Question {
 }
 
 export interface Answer {
+  answerId: string;
   answerText: string;
   score: number;
 }
