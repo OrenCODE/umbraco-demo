@@ -1,0 +1,11 @@
+{
+  "dashboards": [
+    {
+      "alias": "investorResponsesDashboard",
+      "name": "Investor Responses",
+      "sections": [ "content" ],
+      "weight": 1,
+      "view": "/App_Plugins/MyExtension/investorResponsesDashboard.html"
+    }
+  ]
+}

@@ -26,7 +26,6 @@ builder
         options.AddQuery<ContentByRouteQuery>();
         options.AddQuery<ContentAtRootQuery>();
         options.AddQuery<ContentByGuidQuery>();
-        
         // For example, to fetch by numeric ID:
         // options.AddQuery<ContentByIdQuery>();
     })

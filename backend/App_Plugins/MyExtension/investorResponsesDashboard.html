@@ -1,0 +1,34 @@
+<div ng-controller="InvestorResponsesController as vm">
+    <h2>Investor Responses</h2>
+    <table class="umb-table">
+      <thead>
+        <tr>
+          <th>Submission Date</th>
+          <th>Answers Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr ng-repeat="resp in vm.responses">
+          <td>{{ resp.submittedOn | date:'yyyy-MM-dd HH:mm' }}</td>
+          <td>{{ resp.answers.length }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <script>
+    angular.module('umbraco').controller('InvestorResponsesController', function($http) {
+      var vm = this;
+      vm.responses = [];
+  
+      // The GET endpoint you created in the controller
+      $http.get('/umbraco/api/QuestionnaireApi/GetResponses')
+        .then(function(res) {
+          vm.responses = res.data;
+        })
+        .catch(function(err) {
+          console.error('Error fetching investor responses:', err);
+        });
+    });
+  </script>
+  

@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Umbraco.Cms.Core.Models.Blocks;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Web.Common;
@@ -20,72 +21,118 @@ namespace UmbracoDemo.Controllers
         private readonly UmbracoHelper _umbracoHelper;
         private readonly IContentService _contentService;
 
-        // private readonly ILogger<QuestionnaireApiController> _logger;
-
         public QuestionnaireApiController(
             UmbracoHelper umbracoHelper,
             IContentService contentService
-        // ILogger<QuestionnaireApiController> logger
         )
         {
             _umbracoHelper = umbracoHelper;
             _contentService = contentService;
-            // _logger = logger;
         }
 
         [HttpGet("GetQuestionnaire")]
         public IActionResult GetQuestionnaire()
         {
-            IPublishedContent? investorQuestionnaireContent = _umbracoHelper
+            // 1) Locate the "investorQuestionnaire" node at root
+            var investorQuestionnaire = _umbracoHelper
                 .ContentAtRoot()
-                .FirstOrDefault(content => content.ContentType.Alias == "investorQuestionnaire");
+                .FirstOrDefault(x => x.ContentType.Alias == "investorQuestionnaire");
 
-            if (investorQuestionnaireContent == null)
-            {
+            if (investorQuestionnaire is null)
                 return NotFound("Investor questionnaire content not found");
+
+            // 2) Read the "riskProfile" property
+            var riskProfile = investorQuestionnaire.Value<string>("riskProfile") ?? string.Empty;
+
+            // 3) Parse the "questions" block list
+            var questions = new List<Question>();
+            var questionsBlock = investorQuestionnaire.Value<BlockListModel>("questions");
+
+            if (questionsBlock is not null)
+            {
+                foreach (var item in questionsBlock)
+                {
+                    if (item.Content.ContentType.Alias == "question")
+                    {
+                        var qContent = item.Content;
+                        var questionText = qContent.Value<string>("questionText") ?? string.Empty;
+
+                        // "answers" is another block list
+                        var answers = new List<Answer>();
+                        var answersBlock = qContent.Value<BlockListModel>("answers");
+                        if (answersBlock is not null)
+                        {
+                            foreach (var ansItem in answersBlock)
+                            {
+                                if (ansItem.Content.ContentType.Alias == "answer")
+                                {
+                                    var aContent = ansItem.Content;
+                                    var answerText =
+                                        aContent.Value<string>("answerText") ?? string.Empty;
+                                    var score = aContent.Value<int>("score");
+
+                                    answers.Add(
+                                        new Answer
+                                        {
+                                            AnswerId = aContent.Key,
+                                            AnswerText = answerText,
+                                            Score = score,
+                                        }
+                                    );
+                                }
+                            }
+                        }
+
+                        questions.Add(
+                            new Question
+                            {
+                                QuestionId = qContent.Key,
+                                QuestionText = questionText,
+                                Answers = answers,
+                            }
+                        );
+                    }
+                }
             }
 
-            // Map the risk profile
-            var riskProfile =
-                investorQuestionnaireContent.Value<string>("riskProfile") ?? string.Empty;
+            // 4) Parse the "suggestedProducts" block list
+            var suggestedProducts = new List<Product>();
+            var productsBlock = investorQuestionnaire.Value<BlockListModel>("suggestedProducts");
 
-            // Map the questions and their answers (child nodes)
-            var questions = investorQuestionnaireContent
-                .Children()
-                .Where(child => child.ContentType.Alias == "question")
-                .Select(questionContent => new Question
+            if (productsBlock is not null)
+            {
+                foreach (var productItem in productsBlock)
                 {
-                    QuestionId = questionContent.Id,
-                    QuestionText = questionContent.Value<string>("questionText") ?? string.Empty,
-                    Answers = questionContent
-                        .Children()
-                        .Where(child => child.ContentType.Alias == "answer")
-                        .Select(answerContent => new Answer
-                        {
-                            AnswerText = answerContent.Value<string>("answerText") ?? string.Empty,
-                            Score = answerContent.Value<int>("score"),
-                        })
-                        .ToList(),
-                })
-                .ToList();
+                    if (productItem.Content.ContentType.Alias == "product")
+                    {
+                        var pContent = productItem.Content;
+                        var productName = pContent.Value<string>("productName") ?? string.Empty;
+                        var description = pContent.Value<string>("description") ?? string.Empty;
+                        var riskLevel = pContent.Value<string>("riskLevel") ?? string.Empty;
+                        var expectedReturn =
+                            pContent.Value<string>("expectedReturn") ?? string.Empty;
 
-            var suggestedProducts = investorQuestionnaireContent
-                .Children()
-                .Where(child => child.ContentType.Alias == "product")
-                .Select(productContent => new Product
-                {
-                    ProductId = productContent.Id,
-                    ProductName = productContent.Value<string>("productName") ?? string.Empty,
-                    Description = productContent.Value<string>("description") ?? string.Empty,
-                    Image = productContent.Value<IPublishedContent>("image")
-                        is IPublishedContent media
-                        ? $"{Request.Scheme}://{Request.Host}{media.Url()}"
-                        : string.Empty,
-                    RiskLevel = productContent.Value<string>("riskLevel") ?? string.Empty,
-                    ExpectedReturn = productContent.Value<string>("expectedReturn") ?? string.Empty,
-                })
-                .ToList();
+                        var imageMedia = pContent.Value<IPublishedContent>("image");
+                        var imageUrl = imageMedia is not null
+                            ? $"{Request.Scheme}://{Request.Host}{imageMedia.Url()}"
+                            : string.Empty;
 
+                        suggestedProducts.Add(
+                            new Product
+                            {
+                                ProductId = pContent.Key,
+                                ProductName = productName,
+                                Description = description,
+                                Image = imageUrl,
+                                RiskLevel = riskLevel,
+                                ExpectedReturn = expectedReturn,
+                            }
+                        );
+                    }
+                }
+            }
+
+            // 5) Build the final model
             var questionnaireModel = new InvestorQuestionnaireModel
             {
                 RiskProfile = riskProfile,
@@ -99,20 +146,15 @@ namespace UmbracoDemo.Controllers
         [HttpPost("SubmitResponse")]
         public IActionResult SubmitResponse([FromBody] UserResponseModel userResponse)
         {
-            // 1. Locate the folder where responses are saved
-            IPublishedContent? responsesFolder = _umbracoHelper
+            // 1) Locate the folder where responses are saved
+            var responsesFolder = _umbracoHelper
                 .ContentAtRoot()
-                .FirstOrDefault(c => c.ContentType.Alias == "responsesFolder");
+                .FirstOrDefault(x => x.ContentType.Alias == "responsesFolder");
 
-            if (responsesFolder == null)
-            {
-                // _logger.LogWarning(
-                //     "Responses folder not found. Please create/publish a node with alias 'responsesFolder'."
-                // );
+            if (responsesFolder is null)
                 return BadRequest("Responses folder not configured in Umbraco");
-            }
 
-            // 2. Create the new content node under that folder
+            // 2) Create the new content node under that folder
             var nodeName = $"Investor Response {userResponse.SubmittedOn:yyyyMMddHHmmss}";
             var newResponse = _contentService.Create(
                 nodeName,
@@ -120,44 +162,68 @@ namespace UmbracoDemo.Controllers
                 "investorResponse"
             );
 
-            // 3. Serialize the user response to JSON
-            string responseJson = JsonConvert.SerializeObject(userResponse, Formatting.Indented);
+            // 3) Serialize the user response to JSON
+            var responseJson = JsonConvert.SerializeObject(userResponse, Formatting.Indented);
 
-            // 4. Set the property (ensure doc type has a property alias 'responseData')
+            // 4) Set the property (ensure doc type has a property alias 'responseData')
             newResponse.SetValue("responseData", responseJson);
 
-            // 5. Save the content
+            // 5) Save the content
             var saveResult = _contentService.Save(newResponse);
             if (!saveResult.Success)
-            {
-                // _logger.LogError(
-                //     "Failed to save newResponse. Result: {Result}. Likely mandatory fields or doc type issues.",
-                //     saveResult.Result
-                // );
                 return StatusCode(500, $"Error saving the response. Reason: {saveResult.Result}");
-            }
 
-            // 6. Publish the content
-            // For a single-language site, pass an empty array of cultures
-            // If you have "en-US" configured in Umbraco > Settings > Languages, use new[] { "en-US" }
+            // 6) Publish the content
             var publishResult = _contentService.Publish(newResponse, Array.Empty<string>(), 0);
             if (!publishResult.Success)
             {
-                // In Umbraco 15, PublishResult doesn't have an Exception property
-                // We just check publishResult.Result for details
-                var reason = publishResult.Result.ToString(); // e.g. FailedPublishContentInvalid, FailedPublishMandatory, etc.
-                // _logger.LogError("Failed to publish newResponse. Reason: {Reason}", reason);
-
+                var reason = publishResult.Result.ToString();
                 return StatusCode(500, $"Error publishing the response: {reason}");
             }
 
-            // _logger.LogInformation(
-            //     "Successfully saved and published response node: {NodeName}",
-            //     nodeName
-            // );
             return Ok(
                 new { Message = "Response saved and published successfully", Data = userResponse }
             );
+        }
+
+        [HttpGet("GetResponses")]
+        public IActionResult GetResponses()
+        {
+            // 1) Locate the folder where responses are stored
+            var responsesFolder = _umbracoHelper
+                .ContentAtRoot()
+                .FirstOrDefault(x => x.ContentType.Alias == "responsesFolder");
+
+            if (responsesFolder is null)
+                return NotFound("Responses folder not found");
+
+            // 2) For each child node with doc type alias "investorResponse", read its "responseData"
+            var investorResponses = responsesFolder
+                .Children()
+                .Where(x => x.ContentType.Alias == "investorResponse");
+
+            var results = new List<UserResponseModel>();
+
+            foreach (var responseNode in investorResponses)
+            {
+                var json = responseNode.Value<string>("responseData");
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    try
+                    {
+                        var userResponse = JsonConvert.DeserializeObject<UserResponseModel>(json);
+                        if (userResponse is not null)
+                            results.Add(userResponse);
+                    }
+                    catch
+                    {
+                        // Optionally log or handle parse errors
+                    }
+                }
+            }
+
+            // 3) Return all parsed user responses
+            return Ok(results);
         }
     }
 }

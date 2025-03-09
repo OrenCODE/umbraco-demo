@@ -12,20 +12,21 @@ namespace UmbracoDemo.Models
 
     public class Question
     {
-        public int QuestionId { get; set; }
+        public Guid QuestionId { get; set; }
         public string QuestionText { get; set; } = string.Empty;
         public List<Answer> Answers { get; set; } = new List<Answer>();
     }
 
     public class Answer
     {
+        public Guid AnswerId { get; set; }
         public string AnswerText { get; set; } = string.Empty;
         public int Score { get; set; }
     }
 
     public class Product
     {
-        public int ProductId { get; set; }
+        public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string Image { get; set; } = string.Empty;
@@ -41,7 +42,7 @@ namespace UmbracoDemo.Models
 
     public class UserAnswer
     {
-        public int QuestionId { get; set; }
+        public Guid QuestionId { get; set; }
         public string QuestionText { get; set; } = string.Empty;
         public string SelectedAnswer { get; set; } = string.Empty;
         public int Score { get; set; }
